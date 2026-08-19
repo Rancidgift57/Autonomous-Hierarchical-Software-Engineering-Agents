@@ -1,0 +1,27 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: exercises alembic as a subprocess; slower than the rest of the suite",
+]
+# ORM/domain classes named Test* (TestResultORM, TestOutcome, ...) are not
+# pytest test classes; they have __init__ constructors (dataclass/ORM-style)
+# which pytest already refuses to collect on its own, but this silences the
+# resulting PytestCollectionWarning noise in test output.
+filterwarnings = [
+    "ignore::_pytest.warning_types.PytestCollectionWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# UP042: keep `str, Enum` (not `StrEnum`) for broader compatibility with
+# Pydantic v2 JSON schema generation used across the state layer.
+# B008: `Depends(...)` in a parameter default is FastAPI's standard,
+# required idiom (Phase 16 API layer) -- not the mutable-default-argument
+# footgun this rule exists to catch.
+ignore = ["UP042", "B008"]

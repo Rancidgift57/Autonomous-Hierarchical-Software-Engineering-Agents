@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0a0c10;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(63, 199, 182, 0.05), transparent 40%),
+    radial-gradient(circle at 85% 10%, rgba(232, 163, 61, 0.04), transparent 35%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background-color: rgba(63, 199, 182, 0.25);
+}
+
+* {
+  scrollbar-color: #242a33 transparent;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #242a33;
+  border-radius: 999px;
+}
+
+.react-flow__attribution {
+  display: none;
+}

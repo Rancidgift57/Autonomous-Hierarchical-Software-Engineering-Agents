@@ -1,0 +1,27 @@
+# Core
+pydantic>=2.7,<3
+pydantic-settings>=2.2,<3
+PyYAML>=6.0,<7
+httpx>=0.27,<1
+
+# Orchestration (Phase 5+)
+langgraph>=1.0,<2
+
+# Web framework (Phase 1+)
+fastapi>=0.111,<1
+uvicorn[standard]>=0.29,<1
+
+# Persistence (Phase 17)
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
+aiosqlite>=0.20,<1
+asyncpg>=0.29,<1
+greenlet>=3.0,<4
+
+# Testing
+pytest>=8.0,<9
+pytest-asyncio>=0.23,<1
+
+# Lint/format/typecheck
+ruff>=0.4,<1
+mypy>=1.10,<2

@@ -1,0 +1,146 @@
+# Example bootstrap agent hierarchy for AHSEA.
+#
+# This file is a DEFAULT / EXAMPLE hierarchy used for local development and
+# tests. Real projects build their hierarchy dynamically at runtime based on
+# project complexity -- do not treat this file as a fixed schema of teams.
+
+cto:
+  id: cto
+  name: CTO Agent
+  type: cto
+  role_description: >
+    Owns the overall technical strategy, decomposes the project into teams,
+    and approves architecture decisions and production deployments.
+  capabilities:
+    - architecture_planning
+    - team_decomposition
+    - final_approval
+
+teams:
+  Backend:
+    manager:
+      id: backend_manager
+      name: Backend Manager
+      type: manager
+      role_description: Coordinates backend implementation work and owns the API/service layer.
+      capabilities: [task_planning, code_review]
+    workers:
+      - id: api_worker
+        name: API Worker
+        type: worker
+        role_description: Implements FastAPI routes, request/response models, and API contracts.
+        capabilities: [python, fastapi]
+        allowed_tools: [filesystem, git, shell, test_runner]
+      - id: auth_worker
+        name: Authentication Worker
+        type: worker
+        role_description: Implements authentication, authorization, and session handling.
+        capabilities: [python, security]
+        allowed_tools: [filesystem, git, shell, test_runner]
+      - id: service_worker
+        name: Service Worker
+        type: worker
+        role_description: Implements core business/service-layer logic.
+        capabilities: [python]
+        allowed_tools: [filesystem, git, shell, test_runner]
+
+  Frontend:
+    manager:
+      id: frontend_manager
+      name: Frontend Manager
+      type: manager
+      role_description: Coordinates frontend implementation work and owns the UI layer.
+      capabilities: [task_planning, code_review]
+    workers:
+      - id: ui_worker
+        name: UI Worker
+        type: worker
+        role_description: Implements pages, routing, and layout using Next.js and Tailwind CSS.
+        capabilities: [typescript, nextjs, tailwind]
+        allowed_tools: [filesystem, git, shell, test_runner]
+      - id: component_worker
+        name: Component Worker
+        type: worker
+        role_description: Implements reusable React components and shared UI primitives.
+        capabilities: [typescript, react]
+        allowed_tools: [filesystem, git, shell, test_runner]
+
+  Database:
+    manager:
+      id: database_manager
+      name: Database Manager
+      type: manager
+      role_description: Coordinates schema design and migration work.
+      capabilities: [task_planning, code_review]
+    workers:
+      - id: schema_worker
+        name: Schema Worker
+        type: worker
+        role_description: Designs and implements SQLAlchemy models and database schemas.
+        capabilities: [python, sqlalchemy, postgresql]
+        allowed_tools: [filesystem, git, shell, test_runner]
+      - id: migration_worker
+        name: Migration Worker
+        type: worker
+        role_description: Writes and validates Alembic migrations.
+        capabilities: [python, alembic]
+        allowed_tools: [filesystem, git, shell, test_runner]
+
+  AI:
+    manager:
+      id: ai_manager
+      name: AI Manager
+      type: manager
+      role_description: Coordinates LLM integration and evaluation work.
+      capabilities: [task_planning, code_review]
+    workers:
+      - id: model_worker
+        name: Model Worker
+        type: worker
+        role_description: Implements the LLM provider abstraction layer and Ollama integration.
+        capabilities: [python, llm_integration]
+        allowed_tools: [filesystem, git, shell, test_runner]
+      - id: evaluation_worker
+        name: Evaluation Worker
+        type: worker
+        role_description: Builds evaluation harnesses and quality checks for LLM outputs.
+        capabilities: [python, evaluation]
+        allowed_tools: [filesystem, git, shell, test_runner]
+
+system_agents:
+  - id: integration_agent
+    name: Integration Agent
+    type: system_agent
+    system_kind: integration
+    role_description: Detects and resolves integration issues between subsystems/contracts.
+    capabilities: [contract_validation, cross_module_analysis]
+
+  - id: qa_agent
+    name: QA Manager
+    type: system_agent
+    system_kind: qa
+    role_description: Runs automated QA (tests, lint, type checks) and produces QA reports.
+    capabilities: [testing, linting, type_checking]
+    allowed_tools: [shell, test_runner]
+
+  - id: error_analyzer
+    name: Error Analysis Agent
+    type: system_agent
+    system_kind: error_analyzer
+    role_description: Analyzes failures across the system and classifies root causes.
+    capabilities: [error_analysis, log_analysis]
+
+  - id: deployment_agent
+    name: Deployment Manager
+    type: system_agent
+    system_kind: deployment
+    role_description: Prepares and executes deployments, subject to explicit approval.
+    capabilities: [docker, deployment]
+    allowed_tools: [shell, git]
+
+  - id: self_healing_agent
+    name: Self-Healing Coordinator
+    type: system_agent
+    system_kind: self_healing
+    role_description: Coordinates automated repair attempts for failed tasks and QA failures.
+    capabilities: [repair_planning]
