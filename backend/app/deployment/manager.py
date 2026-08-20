@@ -247,16 +247,34 @@ class DeploymentManager:
             raise ValidationFailedError(report.error)
 
         # Write validated artifacts into the sandbox.
-        await self.tools.run("write_file", path=report.dockerfile_path, content=dockerfile.content)
-        await self.tools.run(
-            "write_file", path=report.compose_path, content=config.docker_compose_content
-        )
+        #
+        # Each `write_file` result must actually be checked. Previously
+        # these calls were fire-and-forget: a failed write (e.g. a path
+        # validation error, a size-limit error, or a locked file on
+        # Windows) returns `ToolResult(success=False, ...)` rather than
+        # raising, so the pipeline would silently carry on to `docker_build`
+        # against a missing or stale Dockerfile/compose file -- surfacing,
+        # if at all, as a confusing Docker-level failure with no indication
+        # the actual root cause was an artifact that never got written.
+        artifact_writes = [
+            ("dockerfile", report.dockerfile_path, dockerfile.content),
+            ("docker-compose", report.compose_path, config.docker_compose_content),
+        ]
         if config.env_template_content:
-            await self.tools.run(
-                "write_file", path=".env.example", content=config.env_template_content
-            )
+            artifact_writes.append((".env.example", ".env.example", config.env_template_content))
         if script.filename:
-            await self.tools.run("write_file", path=script.filename, content=script.content)
+            artifact_writes.append((script.filename, script.filename, script.content))
+
+        for label, path, content in artifact_writes:
+            write_result = await self.tools.run("write_file", path=path, content=content)
+            if not write_result.success:
+                report.stage = "failed"
+                report.error = f"Could not write {label} artifact '{path}': {write_result.error}"
+                await self._emit(
+                    report, DeploymentEventType.BUILD_FAILED, "write_file", report.error
+                )
+                set_deployment_stage(state, DeploymentStage.FAILED, redact_secrets(report.error))
+                raise DeploymentPipelineFailedError(report.error)
 
         # -- Docker build --------------------------------------------------
         set_deployment_stage(state, DeploymentStage.BUILDING, f"Building image '{image_tag}'.")

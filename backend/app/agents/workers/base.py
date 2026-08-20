@@ -209,12 +209,36 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             if any(change.path.startswith(bad) for bad in self.scope.forbidden_paths):
                 raise WorkerScopeError(f"Path '{change.path}' is explicitly forbidden.")
 
-    async def _apply_changes(self, files: list[WorkerFileChange]) -> list[str]:
-        """Apply each file change through `self.tools`. Never touches disk directly."""
+    async def _apply_changes(
+        self, files: list[WorkerFileChange]
+    ) -> tuple[list[str], list[str]]:
+        """Apply each file change through `self.tools`. Never touches disk directly.
+
+        Returns `(changed_paths, apply_errors)`. A tool call can fail two
+        different ways, and both must reach the caller:
+
+          * it can *raise* (`ToolError`, e.g. a sandbox `PathValidationError`)
+            -- that still propagates out of this method unchanged, aborting
+            the remaining changes, exactly as before.
+          * it can *return* `ToolResult(success=False, error=...)` without
+            raising -- e.g. `edit_file`'s old_str not matching the file's
+            current content (a stale/incorrect plan), or `write_file`'s
+            `overwrite=False` conflict. Previously this branch was only
+            checked for its success case; a failed result was silently
+            dropped -- the path never landed in `changed`, but nothing else
+            noted the failure either. The worker would then report
+            WorkerStatus.SUCCESS with empty `errors`, having changed nothing
+            on disk, and the LLM driving any retry/self-healing attempt
+            would never be told the edit didn't apply -- so it would retry
+            the exact same (non-matching) old_str/new_str pair every time,
+            burning through retries and self-healing attempts without ever
+            producing a working fix.
+        """
 
         self._validate_scope(files)
 
         changed: list[str] = []
+        apply_errors: list[str] = []
         for change in files:
             if change.action == "create":
                 result = await self.tools.run(
@@ -234,7 +258,11 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
 
             if result.success:
                 changed.append(change.path)
-        return changed
+            else:
+                apply_errors.append(
+                    f"Failed to {change.action} '{change.path}': {result.error}"
+                )
+        return changed, apply_errors
 
     # ------------------------------------------------------------------
     # Stage 5: TEST
@@ -304,16 +332,24 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             implementation = await self._implement(
                 task, task_summary, context_text, plan, metadata
             )
-            files_changed = await self._apply_changes(implementation.files)
+            files_changed, apply_errors = await self._apply_changes(implementation.files)
             tests = await self._test()
             review = await self._self_review(task, implementation, tests, metadata)
 
             summary = implementation.summary
-            if review.decision == "pass" and (not tests.get("ran") or tests.get("success")):
-                status = WorkerStatus.SUCCESS
-            else:
+            errors.extend(apply_errors)
+            tests_ok = not tests.get("ran") or tests.get("success")
+
+            if apply_errors and not files_changed:
+                # Nothing the implementation asked for actually landed on
+                # disk -- this is a hard failure, not a quality nit for
+                # self-review to weigh in on.
+                status = WorkerStatus.FAILED
+            elif apply_errors or review.decision != "pass" or not tests_ok:
                 status = WorkerStatus.PARTIAL
                 errors.extend(review.issues)
+            else:
+                status = WorkerStatus.SUCCESS
 
         except (WorkerScopeError, LLMError, ToolError) as exc:
             errors.append(str(exc))

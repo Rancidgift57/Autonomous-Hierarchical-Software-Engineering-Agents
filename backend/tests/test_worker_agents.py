@@ -237,6 +237,81 @@ async def test_coding_failure_yields_failed_status(executor):
 
 
 # ---------------------------------------------------------------------------
+# Tool-level apply failures (a `ToolResult(success=False, ...)` that
+# doesn't raise -- e.g. a stale/incorrect edit) must surface, not vanish.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_edit_with_stale_old_str_fails_visibly_not_silently(executor):
+    """A non-matching old_str/new_str pair returns a failed ToolResult
+    without raising. Regression test: this used to be swallowed --
+    files_changed stayed empty and errors stayed empty, so the worker
+    reported WorkerStatus.SUCCESS having changed nothing on disk, and any
+    retry/self-healing attempt never learned the edit hadn't applied."""
+
+    await executor.run(
+        "write_file", path="backend/app/api/health.py", content="def health():\n    pass\n"
+    )
+    implementation = WorkerImplementationOutput(
+        summary="Edited health.py",
+        files=[
+            WorkerFileChange(
+                path="backend/app/api/health.py",
+                action="edit",
+                old_str="this text is not actually in the file",
+                new_str="replacement",
+            )
+        ],
+    )
+    gateway = FakeGateway(
+        plan=default_plan(), implementation=implementation, review=WorkerSelfReview(decision="pass")
+    )
+    worker = APIWorker(gateway=gateway, tools=executor, agent_id="api_worker_1")
+
+    result = await worker.run(make_task())
+
+    assert result.status == WorkerStatus.FAILED
+    assert result.files_changed == []
+    assert any("old_str not found" in e for e in result.errors)
+
+
+@pytest.mark.asyncio
+async def test_partial_apply_failure_yields_partial_with_visible_error(executor):
+    """One file writes fine, a second (edit) fails -- the successful write
+    must still be reported, and the failure must appear in `errors`
+    instead of disappearing."""
+
+    await executor.run(
+        "write_file", path="backend/app/api/existing.py", content="ORIGINAL\n"
+    )
+    implementation = WorkerImplementationOutput(
+        summary="Two changes",
+        files=[
+            WorkerFileChange(
+                path="backend/app/api/health.py", action="create", content="def health(): ...\n"
+            ),
+            WorkerFileChange(
+                path="backend/app/api/existing.py",
+                action="edit",
+                old_str="NOT PRESENT",
+                new_str="X",
+            ),
+        ],
+    )
+    gateway = FakeGateway(
+        plan=default_plan(), implementation=implementation, review=WorkerSelfReview(decision="pass")
+    )
+    worker = APIWorker(gateway=gateway, tools=executor, agent_id="api_worker_1")
+
+    result = await worker.run(make_task())
+
+    assert result.status == WorkerStatus.PARTIAL
+    assert "backend/app/api/health.py" in result.files_changed
+    assert any("existing.py" in e and "old_str not found" in e for e in result.errors)
+
+
+# ---------------------------------------------------------------------------
 # Worker registry / identity
 # ---------------------------------------------------------------------------
 

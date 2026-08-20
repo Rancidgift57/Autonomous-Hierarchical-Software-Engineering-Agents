@@ -1,0 +1,6 @@
+backend\.mypy_cache
+backend\.pytest_cache
+backend\.ruff_cache
+backend\.venv
+backend\.env
+backend\ahsea.db

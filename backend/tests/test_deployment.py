@@ -351,6 +351,34 @@ async def test_pipeline_validation_failure_blocks_before_any_docker_call():
 
 
 @pytest.mark.asyncio
+async def test_pipeline_artifact_write_failure_raises_and_marks_failed():
+    """Regression test: `write_file` failing (e.g. sandbox path validation,
+    a size-limit error, a locked file) must not be silently ignored. Before
+    the fix, `run_pipeline` never checked the `write_file` `ToolResult` at
+    all, so a failed artifact write was invisible -- the pipeline sailed on
+    into `docker_build` against a Dockerfile that was never actually
+    written, and any resulting failure looked like a Docker problem instead
+    of pointing at the real cause."""
+
+    tools = default_tools(write_ok=False)
+    tools["write_file"]._error = "Could not write 'Dockerfile': disk quota exceeded"
+    executor = make_fake_executor(tools)
+    state = make_state()
+    manager = DeploymentManager(gateway=FakeGateway(), tools=executor)
+
+    with pytest.raises(DeploymentPipelineFailedError, match="disk quota exceeded"):
+        await manager.run_pipeline(
+            state, qa_report=FakeQAReport(gate_passed=True), service_name="demo-service"
+        )
+
+    assert state.deployment.stage == DeploymentStage.FAILED
+    # The failure must be caught at the very first artifact write --
+    # docker_build must never be reached with an artifact that wasn't
+    # actually written.
+    assert not tools["docker_build"].calls
+
+
+@pytest.mark.asyncio
 async def test_pipeline_docker_build_failure_raises_and_marks_failed():
     tools = default_tools(build_ok=False)
     tools["docker_build"]._error = "no space left on device"
