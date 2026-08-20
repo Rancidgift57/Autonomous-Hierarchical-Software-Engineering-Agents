@@ -517,3 +517,17 @@ AHSEA/
     ├── app/                                     Project list / detail / DAG view
     └── components/
 ```
+---
+
+## Contact
+
+- **Email:** nnair7598@gmail.com
+- **LinkedIn:** [linkedin.com/in/nikhil-nair-809248286](https://www.linkedin.com/in/nikhil-nair-809248286)
+
+<div align="center">
+
+*From Idea to Production — Autonomous AI Agents Engineering Software Together.*
+
+**Thank you** 
+
+</div>
