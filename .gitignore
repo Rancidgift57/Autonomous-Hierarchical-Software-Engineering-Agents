@@ -1,6 +1,12 @@
-backend\.mypy_cache
-backend\.pytest_cache
-backend\.ruff_cache
-backend\.venv
-backend\.env
-backend\ahsea.db
+# Backend environment
+/backend/.venv/
+/backend/.env
+
+# Python caches
+/backend/.mypy_cache/
+/backend/.pytest_cache/
+/backend/.ruff_cache/
+/backend/__pycache__/
+
+# Local database
+/backend/ahsea.db
