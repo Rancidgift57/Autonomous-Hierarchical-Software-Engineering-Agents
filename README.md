@@ -1,4 +1,4 @@
-# AHSEA — Autonomous Hierarchical Software Engineering Agent   
+# AHSEA — Autonomous Hierarchical Software Engineering Agent    
 
 AHSEA turns a natural-language project idea — *"Build a full-stack
 e-commerce app with auth, cart, and payments"* — into an autonomously
