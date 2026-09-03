@@ -519,6 +519,25 @@ AHSEA/
 ```
 ---
 
+# Prompt regression / hallucination testing patch
+
+Adds a new `backend/app/prompt_testing/` package plus wiring into
+`BaseWorkerAgent` and a new test file. Drop these into the matching paths
+in the AHSEA repo (they overwrite `backend/app/agents/workers/base.py`
+with an updated version — 3 one-line additions to capture prompt text,
+plus one new block in `run()`; everything else is unchanged).
+
+Files:
+- backend/app/prompt_testing/__init__.py   (new)
+- backend/app/prompt_testing/schemas.py    (new)
+- backend/app/prompt_testing/checks.py     (new)
+- backend/app/agents/workers/base.py       (modified)
+- backend/tests/test_prompt_regression.py  (new)
+
+Verified: full existing suite (392 tests) + 17 new tests all pass,
+`pytest -q` from `backend/`.
+
+
 ## Contact
 
 - **Email:** nnair7598@gmail.com
