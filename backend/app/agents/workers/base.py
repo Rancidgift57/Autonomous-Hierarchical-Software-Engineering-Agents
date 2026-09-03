@@ -40,6 +40,7 @@ from app.agents.workers.schemas import (
 from app.llm.exceptions import LLMError
 from app.llm.gateway import LLMGateway
 from app.llm.models import TaskType
+from app.prompt_testing.checks import run_worker_prompt_checks
 from app.state.models import Task
 from app.tools.base import ToolExecutor
 from app.tools.exceptions import ToolError
@@ -80,6 +81,12 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
         self.tools = tools
         self.agent_id = agent_id
         self.scope = scope or WorkerScope()
+        #: Exact prompt text sent for each stage of the most recent `run()`
+        #: call, keyed by stage name ("plan", "implement", "self_review").
+        #: Populated as each stage executes; used by
+        #: `app.prompt_testing.checks` (e.g. prompt-echo detection) and
+        #: available for debugging/logging a specific run.
+        self._last_prompts: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Charter / prompt scaffolding (subclasses may override `role_description`)
@@ -152,6 +159,7 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             "concrete steps, and the repository-relative file paths you expect to "
             "touch. Do not write code yet."
         )
+        self._last_prompts["plan"] = prompt
         return await self.gateway.generate_json(
             task_type=TaskType.PLANNING,
             prompt=prompt,
@@ -181,6 +189,7 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             "edit to an existing file (action='edit'). Only touch files relevant "
             "to this task."
         )
+        self._last_prompts["implement"] = prompt
         return await self.gateway.generate_json(
             task_type=TaskType.CODING,
             prompt=prompt,
@@ -299,6 +308,7 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             "satisfies the task and tests are healthy, otherwise 'needs_fix' with "
             "concrete issues."
         )
+        self._last_prompts["self_review"] = prompt
         return await self.gateway.generate_json(
             task_type=TaskType.CODE_REVIEW,
             prompt=prompt,
@@ -323,6 +333,9 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
         files_changed: list[str] = []
         tests: dict[str, Any] = {}
         summary = ""
+        # Reset per-run; stale prompt text from a previous `run()` call on
+        # this same worker instance must never leak into this run's checks.
+        self._last_prompts = {}
 
         try:
             task_summary = self._read_task(task)
@@ -339,6 +352,24 @@ class BaseWorkerAgent(abc.ABC):  # noqa: B024 -- intentionally non-abstract; see
             summary = implementation.summary
             errors.extend(apply_errors)
             tests_ok = not tests.get("ran") or tests.get("success")
+
+            # Deterministic, LLM-free hallucination/regression checks (no
+            # network call, runs in every CI build): flags things like an
+            # empty/refusal plan, a self-review that says "pass" while the
+            # real test run failed, or an implementation that touches only
+            # files nobody ever mentioned. These never change `status` on
+            # their own beyond what `tests_ok`/`review.decision` already
+            # drive above -- they exist to name *why* a run looks off as a
+            # distinct, greppable diagnostic instead of a generic failure.
+            prompt_check_report = run_worker_prompt_checks(
+                plan=plan,
+                implementation=implementation,
+                review=review,
+                context=context,
+                tests=tests,
+                prompts=self._last_prompts,
+            )
+            errors.extend(prompt_check_report.as_error_strings())
 
             if apply_errors and not files_changed:
                 # Nothing the implementation asked for actually landed on
