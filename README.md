@@ -33,6 +33,7 @@ full list.
 14. [Troubleshooting](#12-troubleshooting)
 15. [What's been fixed in this revision](#whats-been-fixed-in-this-revision)
 16. [Project layout](#project-layout)
+17. [Prompt regression / hallucination testing patch](#Prompt regression / hallucination testing patch)
 
 ---
 
